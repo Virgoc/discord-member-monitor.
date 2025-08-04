@@ -4,14 +4,16 @@ import requests
 import websocket
 import json
 import threading
+from flask import Flask
 
+app = Flask(__name__)
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 GATEWAY_URL = "wss://gateway.discord.gg/?v=9&encoding=json"
 
 identified = False
-guild_members = {}
+guild_members = {}  # Stores member IDs per guild to detect joins
 
 headers = {
     "Authorization": DISCORD_TOKEN,
@@ -23,19 +25,22 @@ def send_to_webhook(content):
     try:
         requests.post(WEBHOOK_URL, json={"content": content})
     except Exception as e:
-        print(f"Webhook error: {e}")
+        print(f"Failed to send webhook: {e}")
 
 def get_current_members():
     global guild_members
-    r = requests.get("https://discord.com/api/v9/users/@me/guilds", headers=headers)
-    for guild in r.json():
-        guild_id = guild['id']
-        try:
-            members_r = requests.get(f"https://discord.com/api/v9/guilds/{guild_id}/members?limit=1000", headers=headers)
-            if members_r.status_code == 200:
-                guild_members[guild_id] = set(member['user']['id'] for member in members_r.json())
-        except Exception:
-            continue
+    try:
+        r = requests.get("https://discord.com/api/v9/users/@me/guilds", headers=headers)
+        for guild in r.json():
+            guild_id = guild['id']
+            try:
+                members_r = requests.get(f"https://discord.com/api/v9/guilds/{guild_id}/members?limit=1000", headers=headers)
+                if members_r.status_code == 200:
+                    guild_members[guild_id] = set(member['user']['id'] for member in members_r.json())
+            except:
+                continue
+    except Exception as e:
+        print(f"Error fetching guilds or members: {e}")
 
 def on_message(ws, message):
     global identified, guild_members
@@ -60,7 +65,7 @@ def on_error(ws, error):
     print(f"Error: {error}")
 
 def on_close(ws, close_status_code, close_msg):
-    print("Closed connection, reconnecting in 5 seconds...")
+    print("Closed connection, reconnecting in 5s...")
     time.sleep(5)
     start_gateway()
 
@@ -98,8 +103,18 @@ def start_gateway():
     )
     ws.run_forever()
 
+def run_monitor():
+    start_gateway()
+
+@app.route("/")
+def home():
+    return "Discord Member Monitor is running."
+
 if __name__ == "__main__":
     if not DISCORD_TOKEN or not WEBHOOK_URL:
         print("Missing environment variables. Please set DISCORD_TOKEN and WEBHOOK_URL.")
     else:
-        start_gateway()
+        # Run the Discord monitor in a separate thread
+        threading.Thread(target=run_monitor, daemon=True).start()
+        # Run the Flask app, listening on port 8080 for Render compatibility
+        app.run(host="0.0.0.0", port=8080)
