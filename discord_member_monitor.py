@@ -11,7 +11,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 GATEWAY_URL = "wss://gateway.discord.gg/?v=9&encoding=json"
 
 identified = False
-guild_members = {}  # Stores member IDs per guild to detect joins
+guild_members = {}
 
 headers = {
     "Authorization": DISCORD_TOKEN,
@@ -107,14 +107,17 @@ def start_gateway():
     )
     ws.run_forever()
 
-def run_flask():
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
-
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
     if not DISCORD_TOKEN or not WEBHOOK_URL:
         print("Missing environment variables. Please set DISCORD_TOKEN and WEBHOOK_URL.")
     else:
-        # Start Discord Gateway in a background thread
-        threading.Thread(target=start_gateway, daemon=True).start()
-        # Run Flask app in the main thread (required for Render port binding)
-        run_flask()
+        # Start Flask server to bind the port Render expects
+        flask_thread = threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port, use_reloader=False))
+        flask_thread.start()
+
+        # Wait briefly to ensure port binding completes
+        time.sleep(2)
+
+        # Start the Discord gateway listener
+        start_gateway()
