@@ -1,0 +1,17 @@
+app = "discord-member-monitor"
+
+[build]
+  builder = "heroku/buildpacks:20"
+
+[env]
+  DISCORD_TOKEN = ""
+  WEBHOOK_URL = ""
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+  [[services.ports]]
+    port = 443
