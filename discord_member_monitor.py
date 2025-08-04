@@ -1,9 +1,10 @@
 import os
 import time
-import json
-import threading
 import requests
 import websocket
+import json
+import threading
+
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
