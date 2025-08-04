@@ -114,7 +114,7 @@ if __name__ == "__main__":
     if not DISCORD_TOKEN or not WEBHOOK_URL:
         print("Missing environment variables. Please set DISCORD_TOKEN and WEBHOOK_URL.")
     else:
-        # Run Flask web server in a separate thread for Render port binding
-        threading.Thread(target=run_flask).start()
-        # Start Discord gateway connection
-        start_gateway()
+        # Start Discord Gateway in a background thread
+        threading.Thread(target=start_gateway, daemon=True).start()
+        # Run Flask app in the main thread (required for Render port binding)
+        run_flask()
