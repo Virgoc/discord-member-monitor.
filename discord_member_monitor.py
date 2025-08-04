@@ -6,8 +6,6 @@ import json
 import threading
 from flask import Flask
 
-app = Flask(__name__)
-
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 GATEWAY_URL = "wss://gateway.discord.gg/?v=9&encoding=json"
@@ -20,6 +18,12 @@ headers = {
     "User-Agent": "Mozilla/5.0",
     "Content-Type": "application/json"
 }
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Discord Member Monitor is running."
 
 def send_to_webhook(content):
     try:
@@ -37,10 +41,10 @@ def get_current_members():
                 members_r = requests.get(f"https://discord.com/api/v9/guilds/{guild_id}/members?limit=1000", headers=headers)
                 if members_r.status_code == 200:
                     guild_members[guild_id] = set(member['user']['id'] for member in members_r.json())
-            except:
+            except Exception:
                 continue
     except Exception as e:
-        print(f"Error fetching guilds or members: {e}")
+        print(f"Failed to get current members: {e}")
 
 def on_message(ws, message):
     global identified, guild_members
@@ -65,7 +69,7 @@ def on_error(ws, error):
     print(f"Error: {error}")
 
 def on_close(ws, close_status_code, close_msg):
-    print("Closed connection, reconnecting in 5s...")
+    print("Closed connection, reconnecting in 5 seconds...")
     time.sleep(5)
     start_gateway()
 
@@ -103,18 +107,14 @@ def start_gateway():
     )
     ws.run_forever()
 
-def run_monitor():
-    start_gateway()
-
-@app.route("/")
-def home():
-    return "Discord Member Monitor is running."
+def run_flask():
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
 
 if __name__ == "__main__":
     if not DISCORD_TOKEN or not WEBHOOK_URL:
         print("Missing environment variables. Please set DISCORD_TOKEN and WEBHOOK_URL.")
     else:
-        # Run the Discord monitor in a separate thread
-        threading.Thread(target=run_monitor, daemon=True).start()
-        # Run the Flask app, listening on port 8080 for Render compatibility
-        app.run(host="0.0.0.0", port=8080)
+        # Run Flask web server in a separate thread for Render port binding
+        threading.Thread(target=run_flask).start()
+        # Start Discord gateway connection
+        start_gateway()
