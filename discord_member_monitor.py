@@ -4,9 +4,13 @@ import json
 import threading
 import time
 import os
+from fastapi import FastAPI
+import uvicorn
 
 DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
+
+app = FastAPI()
 
 def send_to_webhook(content):
     payload = {"content": content}
@@ -50,7 +54,7 @@ def on_open(ws):
         ws.send(json.dumps(payload))
     threading.Thread(target=identify).start()
 
-def start():
+def run_discord_monitor():
     while True:
         try:
             ws = websocket.WebSocketApp(
@@ -62,8 +66,14 @@ def start():
             )
             ws.run_forever()
         except Exception as e:
-            print("Connection error:", e)
+            print("WebSocket connection error:", e)
         time.sleep(10)
 
+@app.get("/")
+def root():
+    return {"status": "Discord monitor running"}
+
 if __name__ == "__main__":
-    start()
+    threading.Thread(target=run_discord_monitor).start()
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
