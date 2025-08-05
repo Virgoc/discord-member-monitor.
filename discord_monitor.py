@@ -4,64 +4,67 @@ import requests
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-HEADERS = {
-    "Authorization": DISCORD_TOKEN,
-    "User-Agent": "Mozilla/5.0",
+DATA_FILE = "guild_members.json"
+
+headers = {
+    "Authorization": DISCORD_TOKEN,  # User token used as is
     "Content-Type": "application/json"
 }
 
-MEMBERS_FILE = "members.json"
-
 def load_saved_members():
     try:
-        with open(MEMBERS_FILE, "r") as f:
+        with open(DATA_FILE, "r") as f:
             return json.load(f)
     except FileNotFoundError:
         return {}
 
 def save_members(data):
-    with open(MEMBERS_FILE, "w") as f:
+    with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-def send_to_webhook(message):
-    try:
-        requests.post(WEBHOOK_URL, json={"content": message})
-    except Exception as e:
-        print(f"Webhook send error: {e}")
-
 def get_guilds():
-    r = requests.get("https://discord.com/api/v9/users/@me/guilds", headers=HEADERS)
+    url = "https://discord.com/api/v9/users/@me/guilds"
+    r = requests.get(url, headers=headers)
+    r.raise_for_status()
     return r.json()
 
 def get_guild_members(guild_id):
-    r = requests.get(f"https://discord.com/api/v9/guilds/{guild_id}/members?limit=1000", headers=HEADERS)
-    if r.status_code == 200:
-        return [member['user']['id'] for member in r.json()]
-    return []
+    url = f"https://discord.com/api/v9/guilds/{guild_id}/members?limit=1000"
+    r = requests.get(url, headers=headers)
+    r.raise_for_status()
+    return r.json()
+
+def send_webhook_message(content):
+    try:
+        requests.post(WEBHOOK_URL, json={"content": content})
+    except Exception as e:
+        print(f"Webhook error: {e}")
 
 def main():
     saved_members = load_saved_members()
+    current_members = {}
+
     guilds = get_guilds()
 
-    updated_members = {}
-
     for guild in guilds:
-        guild_id = guild['id']
-        current_members = get_guild_members(guild_id)
-        previous_members = saved_members.get(guild_id, [])
+        guild_id = guild["id"]
+        members = get_guild_members(guild_id)
+        current_member_ids = set(member["user"]["id"] for member in members)
+        current_members[guild_id] = list(current_member_ids)
 
-        # Detect new members
-        new_members = set(current_members) - set(previous_members)
+        previous_member_ids = set(saved_members.get(guild_id, []))
+        new_members = current_member_ids - previous_member_ids
 
-        for member_id in new_members:
-            send_to_webhook(f"New member joined guild {guild_id}: User ID {member_id}")
+        for member in members:
+            user_id = member["user"]["id"]
+            if user_id in new_members:
+                username = f'{member["user"]["username"]}#{member["user"]["discriminator"]}'
+                send_webhook_message(f"New member joined guild {guild_id}: {username} ({user_id})")
 
-        updated_members[guild_id] = current_members
-
-    save_members(updated_members)
+    save_members(current_members)
 
 if __name__ == "__main__":
     if not DISCORD_TOKEN or not WEBHOOK_URL:
-        print("Missing environment variables.")
+        print("Please set DISCORD_TOKEN and WEBHOOK_URL environment variables.")
     else:
         main()
