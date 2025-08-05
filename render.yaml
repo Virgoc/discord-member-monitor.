@@ -1,11 +1,7 @@
 services:
   - type: web
     name: discord-monitor-service
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
-    envVars:
-      - key: DISCORD_TOKEN
-        sync: false
-      - key: WEBHOOK_URL
-        sync: false
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
+    plan: free
